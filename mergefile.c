@@ -1,3 +1,20 @@
+/*
+ *=============================================================================
+ *
+ *		File Name:	mergefile.c
+ *
+ *	  Description:	This file finished all function.
+ *
+ *		  Version:	1.0
+ *		  Created:  Wed Sep  7 15:33:24 2016
+ *		 Compiler:  gcc
+ *
+ *    	   Author:  XuHongping 
+ *    	   E-Mail:  mohists@hotmail.com 
+ *   	  Company:  BLUDON
+ *=============================================================================
+ */
+
 #define _GNU_SOURCE 500
 #include <stdio.h>
 #include <stdint.h>
@@ -8,12 +25,11 @@
 #include <sys/types.h>
 #include <dirent.h>
 
-
 #define MAXPATHLEN 1024 
 
 char g_dest_dir[MAXPATHLEN];
 char g_src_dir[MAXPATHLEN];
-char g_cur_dir[MAXPATHLEN];
+int g_listflag, g_force_flag; 
 
 int parse_args(int argc, char **argv)
 {
@@ -22,13 +38,23 @@ int parse_args(int argc, char **argv)
 	}
 
 	int opt;
-	while ((opt = getopt(argc, argv, "d:s:h")) != -1) {
+	int dflag=0;
+	int sflag=0;
+	while ((opt = getopt(argc, argv, "d:s:lfh")) != -1) {
 		switch (opt) {
 			case 'd':
 				strncpy(g_dest_dir, optarg, sizeof(g_dest_dir));
+				dflag = 0;
 				break;
 			case 's':
 				strncpy(g_src_dir, optarg, sizeof(g_src_dir));
+				sflag = 0;
+				break;
+			case 'l':
+				g_listflag = 1;
+				break;
+			case 'f':
+				g_force_flag = 1;
 				break;
 			case 'h':
 			case '?':
@@ -36,8 +62,12 @@ int parse_args(int argc, char **argv)
 			default:
 				printf("Invalidate parameters!\n");
 				return -1;
-
 		}
+	}
+
+	if (dflag == 0 || sflag == 0) {
+		printf("Option -d and -s is absolutely necessary.\n");
+		return -1;
 	}
 
 	return 0;
@@ -46,60 +76,16 @@ int parse_args(int argc, char **argv)
 void usage()
 {
 	printf( "Usage: merge[OPTIONS...]\n"
-			"      -d < destination dir>        Run as a daemon.\n"
-			"      -s <source dir>              Login interval.\n"
-			"      -h                           Show this help message.\n"
+			"      -d < destination dir>     Destination directory.\n"
+			"      -s <source dir>           Source directory.\n"
+			"      -l                        Display all not same files.\n"
+			"      -f                        Force copy files that doesn't exist in the destination dir.\n"
+			"      -h                        Show this help message.\n"
 		  );
 
 }
-/*
-int get_src_file(const char *fpath, const struct stat *sb, int typeflag)
-{
-	printf("g_cur_dir:%s\n", g_cur_dir);
-	if (strcmp(fpath, g_cur_dir) == 0) 
-			printf("fpath: %s\n", fpath);
-		
-	return 0;
-}
-*/
 
-/*
-int get_src_file(const char *dirname, char **filename) 
-
-{
-
-	DIR *dir;
-	struct dirent *ptr;
-	char base[MAXPATHLEN];
-
-	if ((dir = opendir(dirname)) == NULL) {
-		perror("Open destination directory  error...");
-		return -1;
-	}
-
-	while ((ptr = readdir(dir)) !=NULL) {
-			memset(base,0, MAXPATHLEN);
-			strcpy(base, dirname);
-		if ((strcmp(ptr->d_name, ".") == 0) || (strcmp(ptr->d_name, "..") == 0))  {
-			continue;
-		} else if (ptr->d_type == DT_REG)  {
-			strcat(base, "/");
-			strcat(base, ptr->d_name);
-			printf("file :%s\n", base);
-			;
-		} else if (ptr->d_type == DT_DIR) {
-			strcat(base, "/");
-			strcat(base,ptr->d_name);
-			get_dst_file(base);
-		} 
-
-	}
-	
-	return 0;
-}
-*/
-
-int get_src_file(const char *filepath) 
+int traversal_src_dir(const char *filepath) 
 {
 
 	DIR *dir;
@@ -119,20 +105,14 @@ int get_src_file(const char *filepath)
 		} else if (ptr->d_type == DT_REG)  {
 			strcat(base, "/");
 			strcat(base, ptr->d_name);
-			//printf("file :%s\n", base);
-			char srcfile[MAXPATHLEN] = {0};
 			char dstfile[MAXPATHLEN] = {0};
-			//printf("str_dstr: %s\n", base);
 			strcpy(dstfile, g_dest_dir);
 			strcat(dstfile, base + strlen(g_src_dir) ); 
-			printf("dstfile: %s\n\n", dstfile);
-
 
 			char cmdbuf[2048] = {0};
-
-
 			/*
-			 * here only copy the file  that already have included in the  destination directory
+			 * here only copy the file  that already have included in the  
+			 * destination directory
 			 */
 			if (access(dstfile, F_OK) == 0) {
 				sprintf(cmdbuf, "cp %s %s", base, dstfile); 
@@ -140,19 +120,33 @@ int get_src_file(const char *filepath)
 				system(cmdbuf);
 			}
 
+			/*
+			 * list  all files that doesn't exist in the destination directory.
+			 */
+
+			if (g_listflag == 1)  {
+				if (access(dstfile, F_OK) != 0) {
+					printf("+ base:%s\n", base);
+				}
+			}
+
+			/*
+			 * copy all files to the destination directory.
+			 */
+
+			if (g_force_flag == 1) 
+				system(cmdbuf);
 
 		} else if (ptr->d_type == DT_DIR) {
 			strcat(base, "/");
 			strcat(base,ptr->d_name);
-			get_src_file(base);
+			traversal_src_dir(base);
 		} 
 
 	}
 	
-
 	return 0;
 }
-
 
 int main(int argc, char **argv)
 {
@@ -162,14 +156,9 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	//if (nftw(g_src_dir, cp_file, 1024, FTW_CONTINUE) < 0) {
-	 if (get_src_file(g_src_dir) < 0) {
-		perror("get file error");
+	 if (traversal_src_dir(g_src_dir) < 0) {
 		return -1;
 	}
-
-
-	
 
 	return 0;
 }
