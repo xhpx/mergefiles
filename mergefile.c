@@ -15,11 +15,10 @@
  *=============================================================================
  */
 
-#define _GNU_SOURCE 500
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-#include <ftw.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -44,11 +43,11 @@ int parse_args(int argc, char **argv)
 		switch (opt) {
 			case 'd':
 				strncpy(g_dest_dir, optarg, sizeof(g_dest_dir));
-				dflag = 0;
+				dflag = 1;
 				break;
 			case 's':
 				strncpy(g_src_dir, optarg, sizeof(g_src_dir));
-				sflag = 0;
+				sflag = 1;
 				break;
 			case 'l':
 				g_listflag = 1;
@@ -110,13 +109,13 @@ int traversal_src_dir(const char *filepath)
 			strcat(dstfile, base + strlen(g_src_dir) ); 
 
 			char cmdbuf[2048] = {0};
+			sprintf(cmdbuf, "cp %s %s", base, dstfile); 
 			/*
 			 * here only copy the file  that already have included in the  
 			 * destination directory
 			 */
 			if (access(dstfile, F_OK) == 0) {
-				sprintf(cmdbuf, "cp %s %s", base, dstfile); 
-				printf( " cmd###: %s\n", cmdbuf);
+				printf( " Executing: %s\n", cmdbuf);
 				system(cmdbuf);
 			}
 
@@ -134,8 +133,17 @@ int traversal_src_dir(const char *filepath)
 			 * copy all files to the destination directory.
 			 */
 
-			if (g_force_flag == 1) 
+			if (g_force_flag == 1)  {
+				char dname[MAXPATHLEN] = {0}; 
+				sprintf(dname, "%s", dirname(dstfile));
+				char cmd[1024] = {0};
+				if (access(dname, F_OK) != 0) {
+					sprintf(cmd, "mkdir -p %s", dname);
+					system(cmd);
+				}
+				printf( " Executing: %s\n", cmdbuf);
 				system(cmdbuf);
+			}
 
 		} else if (ptr->d_type == DT_DIR) {
 			strcat(base, "/");
